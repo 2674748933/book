@@ -1,7 +1,9 @@
-package com.coldnight.book;
+package com.coldnight.book.old;
 
+import android.app.Activity;
 import android.content.Context;
 import android.text.Layout;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
@@ -9,12 +11,18 @@ import android.widget.TextView;
 
 import androidx.viewpager.widget.ViewPager;
 
+import com.coldnight.book.beans.Chapter;
+import com.coldnight.book.controls.ReadView;
+import com.coldnight.book.old.BookPageAdapter;
+import com.coldnight.book.old.BookViewPager;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class BookPage {
+    private static final String TAG = "BookPage";
     private final Context mContext;
     private FrameLayout root;
     private BookPageAdapter bookPageAdapter;
@@ -193,18 +201,17 @@ public class BookPage {
     public void setTxt(String txt, String regex, int chapter) {
         if ("".equals(txt.trim()))
             throw new RuntimeException("The text content must not be empty");
-        loadItems();        //先设置好视图，然后计算章节内容
-        List<Integer> pos = new ArrayList<>();
+        List<Integer> positions = new ArrayList<>();
         Pattern p = Pattern.compile(regex);
         Matcher m = p.matcher(txt);
         while (m.find()) {
             directory.add(m.group().substring(0, (m.group().length() - 1)));
-            pos.add(m.start());
-            pos.add(m.end());
+            positions.add(m.start());
+            positions.add(m.end());
         }
-        pos.add(txt.length());
+        positions.add(txt.length());
         for (int i = 0; i < directory.size(); i++) {
-            String endStr = txt.substring(pos.get(i * 2 + 1), pos.get(i * 2 + 2));
+            String endStr = txt.substring(positions.get(i * 2 + 1), positions.get(i * 2 + 2));
             novel.add(new Chapter(i + 1, directory.get(i), endStr));
         }
 
@@ -228,31 +235,10 @@ public class BookPage {
                 }
             }
         }
-
-        //自动分章完毕，执行加载章节  将章节载入三个list中
-        Calculated c = () -> {
-            List<View> cache = new ArrayList<>();
-            int p1 = page - 1;
-
-            for (int i = 0; i < mItems.size(); i++) {
-                int j = p1 + i;
-                TextView tv = (TextView) mItems.get(i);
-                tv.setText(mTxtList.get(j));
-                cache.add(tv);
-            }
-
-            mItems.clear();
-            mItems.addAll(cache);
-            bookPageAdapter.notifyDataSetChanged();
-//                if (chapter == 1)
-//                    switching = false;
-        };
-        loadChapter(chapter, c);
     }
 
 
     // FIXME: 2021/11/6 优化加载章节模式
-
     private void loadChapter(int num) {
         loadChapter(num, null);
     }
@@ -339,21 +325,6 @@ public class BookPage {
 
     }
 
-    private void loadItems() {
-        //视图列表为空。则加载3个视图，并设置适配器
-        if (mItems.isEmpty()) {
-            for (int i = 0; i < 3; i++) {
-                TextView tv = new TextView(mContext);
-                tv.setTextSize(textView.getTextSize() / 2);
-                tv.setPadding(textView.getPaddingLeft(), textView.getPaddingTop(), textView.getPaddingRight(), textView.getPaddingBottom());
-                tv.setLineSpacing(0, textView.getLineSpacingMultiplier());
-                tv.setLetterSpacing(textView.getLetterSpacing());
-                mItems.add(tv);
-            }
-            bookViewPager.setAdapter(bookPageAdapter);
-        }
-    }
-
     public void addChapter(String title, String content) {
         novel.add(new Chapter(novel.size(), title, content));
     }
@@ -379,12 +350,19 @@ public class BookPage {
         return mItems;
     }
 
-    private void calc(String content, List<String> mList) {
-        calc(content, mList, null);
+    /**
+     * 计算字数
+     *
+     * @param content 章节内容，用于计算字数的内容
+     * @return mList中存放每页的内容
+     */
+    private void calc(String content, List<String> mlist) {
+         calc(content, mlist,  null);
     }
 
     // FIXME: 2021/10/12 计算每页内容，后期优化代码
-    private void calc(String content, List<String> mList, Calculated callBackCalculate) {
+    private void calc(String content, List<String > mlst, Calculated callBackCalculate) {
+        List<String> mList = new ArrayList<>();
         textView.setText(content);
         final boolean[] flag = {false};              //标识onGlobalLayout执行次数
         ViewTreeObserver observer = textView.getViewTreeObserver();
@@ -409,7 +387,7 @@ public class BookPage {
                     }
                     mList.add(newContent.toString().trim());
                     if (cursor < length) {
-                        textView.setText(content.substring(cursor));
+
                     }
                 }
                 //计算完成 设置Items的文本内容

@@ -1,18 +1,20 @@
 package com.coldnight.book;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.viewpager.widget.PagerAdapter;
-import androidx.viewpager.widget.ViewPager;
 
+import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.TextView;
 
-import java.util.Arrays;
+import com.coldnight.book.controls.FlipperLayout;
+import com.coldnight.book.utils.PageUtils;
 
-public class MainActivity extends AppCompatActivity {
+import java.util.ArrayList;
+import java.util.List;
+
+public class MainActivity extends AppCompatActivity implements FlipperLayout.TouchListener, PageUtils.Calculated {
     String content = "第一章 呵呵\n一望无垠的大漠，空旷而高远，壮阔而雄浑，当红日西坠，地平线尽头一片殷红，磅礴中亦有种苍凉感。\n" +
             "\n" +
             "    上古的烽烟早已在岁月中逝去，黄河古道虽然几经变迁，但依旧在。\n" +
@@ -56,29 +58,111 @@ public class MainActivity extends AppCompatActivity {
             "    在沙漠中，海市蜃楼那样的奇景多发生在烈日当空下，眼下不相符，这不像是什么蜃景。\n" +
             "\n" +
             "    突然，前面传来轻响，像是有什么东西破沙而出，而且声音很密集，此起彼伏。\n" +
-            "\n" ;
+            "\n";
+
+    private List<String> curr_pages;    //当前页列表
+    private TextView tv;                //当前页文本控件
+    private TextView tv_right;          //下一页文本控件
+    private FlipperLayout fl;           //滑动控件
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
 
         /*
-        * 1.实例化对象   succeed
-        * 2.获取并设置布局     succeed
-        * 3.设置小说内容,自动分章     succeed
-        * 4.加载章节 判断章节是否大于三章，大于执行，小于如何？ 小于是根据位置设置清空其他章节缓存
-        * 5.自动分页  计算完每页内容后自动视图内容 分页时判断是否大于三页，大于如何，小于如何？
-        * 6.固定三页视图，默认第一页，永远第一页
-        * 7.点击下一页 如果不是最后一页，执行，如果是最后一页
-        * */
+         * 1.实例化对象   succeed
+         * 2.获取并设置布局     succeed
+         * 3.设置小说内容,自动分章     succeed
+         * 4.加载章节  判断是否大于三章，大于如何，小于如何？      大于等于则载入三章内容，小于则有多少载入多少章节
+         * 5.自动分页  判断是否大于三页，大于如何，小于如何？
+         * 6.共有当前章节页数+2页
+         * 7.点击上一页，如果是非第一章第一页，加载上一章内容
+         *             如果是其他则不执行
+         * 8.点击下一页，如果是非最后一章最后一页，加载下一章内容
+         *             如果是其他则不执行
+         * */
         // FIXME: 2021/11/6 1.滑动过快无法滑动
-        BookPage bp = new BookPage(this);
+//        BookPage bp = new BookPage(this);
 
-        setContentView(bp.getView());
+//        setContentView(bp.getView());
+//
+//        bp.setTxt(content);
 
-        bp.setTxt(content);
+        init();
 
+    }
+
+    private void init() {
+        fl = findViewById(R.id.flip);
+
+        @SuppressLint("InflateParams") View view1 = LayoutInflater.from(this).inflate(R.layout.activity_read, null);
+        @SuppressLint("InflateParams") View view2 = LayoutInflater.from(this).inflate(R.layout.activity_read, null);
+        @SuppressLint("InflateParams") View view3 = LayoutInflater.from(this).inflate(R.layout.activity_read, null);
+
+        fl.initFlipperViews(MainActivity.this, view1, view2, view3);
+
+        tv = view2.findViewById(R.id.textView);
+        tv_right = view1.findViewById(R.id.textView);
+
+        curr_pages = new ArrayList<>();
+        PageUtils pu = new PageUtils(findViewById(R.id.textView_hide));
+        pu.getChapters(content);
+        pu.getPages(this, content, MainActivity.this);
+    }
+
+    /**
+     * 创建一个承载Text的View
+     *
+     * @param direction 滑动方向
+     * @param index     新建页的索引
+     * @return 返回新建的上（下）一页的视图
+     */
+    @SuppressLint("InflateParams")
+    @Override
+    public View createView(int direction, int index) {
+        View newView;
+        if (direction == FlipperLayout.TouchListener.MOVE_TO_LEFT) { //下一页
+            newView = LayoutInflater.from(this).inflate(R.layout.activity_read, null);
+            final TextView tv = newView.findViewById(R.id.textView);
+            if (index < curr_pages.size()) {
+                tv.setText(curr_pages.get(index));
+            }
+        } else {
+            newView = LayoutInflater.from(this).inflate(R.layout.activity_read, null);
+            final TextView textView = newView.findViewById(R.id.textView);
+            textView.setText(curr_pages.get(index - 1));
+        }
+        return newView;
+    }
+
+    /***
+     * 当前页是否是最后一页
+     *
+     * @return 返回是否为最后一页
+     */
+    @Override
+    public boolean currentIsLastPage() {
+        return curr_pages.size() == fl.getIndex();
+    }
+
+    /***
+     * 当前页是否有下一页（用来判断可滑动性）
+     *
+     * @return 返回是否有下一页
+     */
+    @Override
+    public boolean whetherHasNextPage(int index) {
+        return curr_pages.size() > index;
+    }
+
+    @Override
+    public void calculated(List<String> mList) {
+        curr_pages = mList;
+        tv.setText(mList.get(0));
+        tv_right.setText(mList.get(1));
 
     }
 }

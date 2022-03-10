@@ -1,4 +1,4 @@
-package com.coldnight.book;
+package com.coldnight.book.beans;
 
 public class Chapter {
     private int id;
